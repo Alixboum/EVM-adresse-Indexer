@@ -260,6 +260,13 @@ export const appRouter = router({
 
   // ─── Search / Arkham ───────────────────────────────────────────────────────
   search: router({
+    // Search local database for matching addresses
+    local: protectedProcedure
+      .input(z.object({ query: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        return db.searchAddressesInDb(input.query, ctx.user.id);
+      }),
+
     arkham: protectedProcedure
       .input(z.object({
         query: z.string().min(1),

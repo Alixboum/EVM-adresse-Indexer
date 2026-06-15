@@ -254,6 +254,41 @@ export async function deleteConnection(id: number) {
   await db.delete(addressConnections).where(eq(addressConnections.id, id));
 }
 
+// ─── Address Search (local DB) ──────────────────────────────────────────────
+
+export async function searchAddressesInDb(query: string, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const normalizedQuery = query.toLowerCase().trim();
+  // Find all addresses matching the query (by address or label)
+  const results = await db
+    .select({
+      id: evmAddresses.id,
+      address: evmAddresses.address,
+      chain: evmAddresses.chain,
+      label: evmAddresses.label,
+      notes: evmAddresses.notes,
+      arkhamEntity: evmAddresses.arkhamEntity,
+      arkhamLabels: evmAddresses.arkhamLabels,
+      profileId: evmAddresses.profileId,
+      profileName: profiles.name,
+      profileTags: profiles.tags,
+    })
+    .from(evmAddresses)
+    .innerJoin(profiles, eq(evmAddresses.profileId, profiles.id))
+    .where(
+      and(
+        eq(profiles.userId, userId),
+        or(
+          like(evmAddresses.address, `%${normalizedQuery}%`),
+          like(evmAddresses.label, `%${normalizedQuery}%`)
+        )
+      )
+    )
+    .limit(20);
+  return results;
+}
+
 // ─── Search History ──────────────────────────────────────────────────────────
 
 export async function addSearchEntry(data: InsertSearchHistoryEntry) {

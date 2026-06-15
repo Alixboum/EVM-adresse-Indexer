@@ -5,10 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Search, Users, History, LogOut, Fingerprint,
-  ExternalLink, Globe, ArrowUpRight
+  ExternalLink, Globe, ArrowUpRight, Database, Link2, UserCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -18,8 +18,15 @@ export default function SearchPage() {
   const [, setLocation] = useLocation();
   const [query, setQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  // Still save to history for tracking purposes
+  // Local DB search - reactive query
+  const localSearchQuery = trpc.search.local.useQuery(
+    { query: debouncedQuery },
+    { enabled: debouncedQuery.length >= 3 }
+  );
+
+  // Save to history for tracking purposes
   const searchMutation = trpc.search.arkham.useMutation({
     onSuccess: () => {
       setHasSearched(true);
@@ -28,6 +35,18 @@ export default function SearchPage() {
       setHasSearched(true);
     },
   });
+
+  // Debounce local search
+  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(value.trim());
+    }, 300);
+    setDebounceTimer(timer);
+  };
 
   if (loading) {
     return (
@@ -46,7 +65,6 @@ export default function SearchPage() {
 
   const handleSearch = () => {
     if (!query.trim()) return;
-    // Save to search history
     searchMutation.mutate({ query: query.trim(), queryType: isAddress ? "address" : "entity" });
   };
 
@@ -68,6 +86,8 @@ export default function SearchPage() {
     { name: "BscScan", url: `https://bscscan.com/address/${query.trim()}` },
     { name: "Optimistic Etherscan", url: `https://optimistic.etherscan.io/address/${query.trim()}` },
   ];
+
+  const localMatches = localSearchQuery.data || [];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -108,19 +128,19 @@ export default function SearchPage() {
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight">Address Lookup</h1>
             <p className="text-muted-foreground mt-1">
-              Search an EVM address or entity and open it directly on Arkham Intelligence or block explorers
+              Search an EVM address or entity — matches from your local database will appear automatically
             </p>
           </div>
 
           {/* Search Bar */}
-          <div className="flex gap-3 mb-8">
+          <div className="flex gap-3 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Enter an EVM address (0x...) or entity name..."
                 className="pl-10 bg-card border-border/50 h-12 text-base font-mono"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => handleQueryChange(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
             </div>
@@ -132,6 +152,89 @@ export default function SearchPage() {
               Search
             </Button>
           </div>
+
+          {/* Local Database Matches */}
+          {localMatches.length > 0 && (
+            <Card className="bg-card border-emerald-500/30 mb-6">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  <p className="text-sm font-medium text-emerald-400">
+                    {localMatches.length} match{localMatches.length > 1 ? "es" : ""} found in your database
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {localMatches.map((match) => (
+                    <div
+                      key={match.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <UserCircle className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {match.label && (
+                              <span className="text-sm font-medium">{match.label}</span>
+                            )}
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {match.chain}
+                            </Badge>
+                            {match.arkhamEntity && (
+                              <Badge className="bg-primary/10 text-primary text-xs">
+                                {match.arkhamEntity}
+                              </Badge>
+                            )}
+                          </div>
+                          <code className="text-xs font-mono text-muted-foreground truncate block">
+                            {match.address}
+                          </code>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge variant="secondary" className="text-xs">
+                          <Link2 className="w-3 h-3 mr-1" />
+                          {match.profileName}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-xs text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setLocation(`/profile/${match.profileId}`)}
+                        >
+                          View Profile
+                          <ArrowUpRight className="w-3 h-3 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Searching indicator for local */}
+          {debouncedQuery.length >= 3 && localSearchQuery.isLoading && (
+            <Card className="bg-card/50 border-border/50 mb-6">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-muted-foreground">Searching local database...</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No local matches message */}
+          {debouncedQuery.length >= 3 && !localSearchQuery.isLoading && localMatches.length === 0 && (
+            <Card className="bg-card/50 border-border/50 border-dashed mb-6">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Database className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  No matches found in your local database for this query.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Results - Explorer Links */}
           {hasSearched && query.trim() && (
@@ -210,14 +313,14 @@ export default function SearchPage() {
             </div>
           )}
 
-          {!hasSearched && (
+          {!hasSearched && debouncedQuery.length < 3 && (
             <Card className="bg-card/50 border-border/50 border-dashed">
               <CardContent className="p-12 text-center">
                 <Search className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
                 <h3 className="font-medium text-foreground mb-2">Search Arkham Intelligence</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   Enter an EVM address or entity name to open it on Arkham Intelligence
-                  and verify it across multiple block explorers.
+                  and verify it across multiple block explorers. Local database matches will appear as you type.
                 </p>
               </CardContent>
             </Card>

@@ -28,3 +28,6 @@
 - [x] Frontend: edit address modal
 - [x] Frontend: social verification flow (mark as verified)
 - [x] Integration: Arkham search as manual redirect (no API key needed)
+- [x] Backend: search local DB for matching addresses when searching
+- [x] Frontend: display local DB matches in SearchPage with link to profile
+- [x] Frontend: quick-link button to view profile from search results
