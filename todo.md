@@ -1,0 +1,30 @@
+# Project TODO
+
+- [x] Database schema: profiles table (name, avatar, notes, created_at)
+- [x] Database schema: evm_addresses table (profile_id, address, chain, label, notes, arkham_entity, arkham_labels)
+- [x] Database schema: social_accounts table (profile_id, platform, username, verified, profile_url)
+- [x] Database schema: search_history table (user_id, query, result_summary, created_at)
+- [x] Database schema: address_connections table (from_address_id, to_address_id, connection_type, notes)
+- [x] Backend: CRUD procedures for profiles
+- [x] Backend: CRUD procedures for EVM addresses
+- [x] Backend: CRUD procedures for social accounts
+- [x] Backend: Arkham Intelligence search integration (proxy API)
+- [x] Backend: Search history tracking
+- [x] Backend: Address connections management
+- [x] Frontend: Dark premium theme with refined typography
+- [x] Frontend: Dashboard layout with sidebar navigation
+- [x] Frontend: Profiles list page with search/filter
+- [x] Frontend: Profile detail page with addresses, socials, and connections
+- [x] Frontend: Add/Edit profile modal
+- [x] Frontend: Add/Edit address modal with chain selector
+- [x] Frontend: Arkham search page with results display
+- [x] Frontend: Address connection visualization (graph view)
+- [x] Frontend: Social account verification UI
+- [x] Frontend: Search history page
+- [x] Integration: Arkham Intelligence API for address enrichment
+- [x] Integration: Hemi Explorer link for address verification
+- [x] Backend: ownership check on connections add/delete
+- [x] Frontend: edit profile modal
+- [x] Frontend: edit address modal
+- [x] Frontend: social verification flow (mark as verified)
+- [x] Integration: Arkham search as manual redirect (no API key needed)
