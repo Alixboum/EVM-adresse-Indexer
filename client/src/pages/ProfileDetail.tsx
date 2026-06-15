@@ -13,7 +13,7 @@ import { useLocation, useParams } from "wouter";
 import { useState, useMemo } from "react";
 import {
   ArrowLeft, Plus, ExternalLink, Trash2, RefreshCw, Network,
-  Twitter, Globe, Copy, Check, Fingerprint, Search, Users, History, LogOut, Link2, Shield, Pencil
+  Twitter, Globe, Copy, Check, Fingerprint, Search, Users, History, LogOut, Link2, Shield, Pencil, Share2
 } from "lucide-react";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
@@ -178,6 +178,15 @@ export default function ProfileDetail() {
     onError: (err) => toast.error(err.message),
   });
 
+  const shareMutation = trpc.sharing.createLink.useMutation({
+    onSuccess: (result) => {
+      const shareUrl = `${window.location.origin}/shared/${result.shareToken}`;
+      navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied to clipboard!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -273,20 +282,32 @@ export default function ProfileDetail() {
                     )}
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setEditName(data.profile.name);
-                    setEditNotes(data.profile.notes || "");
-                    setEditTags(data.profile.tags || "");
-                    setEditProfileOpen(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => shareMutation.mutate({ profileId: data.profile.id, permission: "view" })}
+                    disabled={shareMutation.isPending}
+                  >
+                    <Share2 className="w-4 h-4 mr-2" />
+                    {shareMutation.isPending ? "Sharing..." : "Share"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-muted-foreground"
+                    onClick={() => {
+                      setEditName(data.profile.name);
+                      setEditNotes(data.profile.notes || "");
+                      setEditTags(data.profile.tags || "");
+                      setEditProfileOpen(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </div>
               </div>
 
               {/* Edit Profile Dialog */}

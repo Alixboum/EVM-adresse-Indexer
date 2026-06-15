@@ -98,5 +98,25 @@ export type SocialAccount = typeof socialAccounts.$inferSelect;
 export type InsertSocialAccount = typeof socialAccounts.$inferInsert;
 export type AddressConnection = typeof addressConnections.$inferSelect;
 export type InsertAddressConnection = typeof addressConnections.$inferInsert;
+/**
+ * Shared profiles - allows sharing profiles with other users via link token
+ */
+export const sharedProfiles = mysqlTable("shared_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  profileId: int("profileId").notNull(),
+  ownerId: int("ownerId").notNull(),
+  shareToken: varchar("shareToken", { length: 64 }).notNull().unique(),
+  /** 'link' = anyone with the link, 'user' = specific user */
+  shareType: varchar("shareType", { length: 32 }).notNull().default("link"),
+  /** If shareType='user', the target user id */
+  sharedWithUserId: int("sharedWithUserId"),
+  /** 'view' or 'edit' */
+  permission: varchar("permission", { length: 32 }).notNull().default("view"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export type SearchHistoryEntry = typeof searchHistory.$inferSelect;
 export type InsertSearchHistoryEntry = typeof searchHistory.$inferInsert;
+export type SharedProfile = typeof sharedProfiles.$inferSelect;
+export type InsertSharedProfile = typeof sharedProfiles.$inferInsert;

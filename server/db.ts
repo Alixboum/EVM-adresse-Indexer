@@ -7,6 +7,7 @@ import {
   socialAccounts, InsertSocialAccount,
   addressConnections, InsertAddressConnection,
   searchHistory, InsertSearchHistoryEntry,
+  sharedProfiles, InsertSharedProfile,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -311,4 +312,93 @@ export async function deleteSearchEntry(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(searchHistory).where(eq(searchHistory.id, id));
+}
+
+// ─── Export ─────────────────────────────────────────────────────────────────
+
+export async function getFullExportData(userId: number) {
+  const db = await getDb();
+  if (!db) return { profiles: [], addresses: [], socials: [], connections: [] };
+
+  const userProfiles = await db.select().from(profiles).where(eq(profiles.userId, userId));
+  if (userProfiles.length === 0) return { profiles: userProfiles, addresses: [], socials: [], connections: [] };
+
+  const profileIds = userProfiles.map(p => p.id);
+  
+  // Get all addresses for all profiles
+  const allAddresses = [];
+  const allSocials = [];
+  const allConnections = [];
+  
+  for (const pid of profileIds) {
+    const addrs = await db.select().from(evmAddresses).where(eq(evmAddresses.profileId, pid));
+    allAddresses.push(...addrs);
+    const socs = await db.select().from(socialAccounts).where(eq(socialAccounts.profileId, pid));
+    allSocials.push(...socs);
+  }
+
+  // Get connections for all addresses
+  const addressIds = allAddresses.map(a => a.id);
+  for (const addrId of addressIds) {
+    const conns = await db.select().from(addressConnections).where(
+      or(eq(addressConnections.fromAddressId, addrId), eq(addressConnections.toAddressId, addrId))
+    );
+    allConnections.push(...conns);
+  }
+
+  // Deduplicate connections
+  const seenConns = new Set<number>();
+  const uniqueConnections = allConnections.filter(c => {
+    if (seenConns.has(c.id)) return false;
+    seenConns.add(c.id);
+    return true;
+  });
+
+  return {
+    profiles: userProfiles,
+    addresses: allAddresses,
+    socials: allSocials,
+    connections: uniqueConnections,
+  };
+}
+
+// ─── Shared Profiles ────────────────────────────────────────────────────────
+
+export async function createShareLink(data: InsertSharedProfile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(sharedProfiles).values(data);
+  return { id: result[0].insertId };
+}
+
+export async function getSharesByProfile(profileId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(sharedProfiles).where(eq(sharedProfiles.profileId, profileId)).orderBy(desc(sharedProfiles.createdAt));
+}
+
+export async function getShareByToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(sharedProfiles).where(eq(sharedProfiles.shareToken, token)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getSharedWithUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(sharedProfiles).where(eq(sharedProfiles.sharedWithUserId, userId)).orderBy(desc(sharedProfiles.createdAt));
+}
+
+export async function deleteShareLink(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(sharedProfiles).where(eq(sharedProfiles.id, id));
+}
+
+export async function getShareById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(sharedProfiles).where(eq(sharedProfiles.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }

@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import ProfileDetail from "./pages/ProfileDetail";
 import SearchPage from "./pages/SearchPage";
 import HistoryPage from "./pages/HistoryPage";
+import SharedProfileView from "./pages/SharedProfileView";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path={"/profile/:id"} component={ProfileDetail} />
       <Route path={"/search"} component={SearchPage} />
       <Route path={"/history"} component={HistoryPage} />
+      <Route path={"/shared/:token"} component={SharedProfileView} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

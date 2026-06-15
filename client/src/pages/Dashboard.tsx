@@ -10,8 +10,15 @@ import { useLocation } from "wouter";
 import { useState } from "react";
 import {
   Plus, Search, Network, Users, History, LogOut,
-  Fingerprint, ExternalLink, MoreHorizontal, Trash2
+  Fingerprint, ExternalLink, MoreHorizontal, Trash2,
+  Download, FileJson, FileSpreadsheet
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
 
@@ -23,6 +30,90 @@ export default function Dashboard() {
   const [newName, setNewName] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [newTags, setNewTags] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  const exportQuery = trpc.export.all.useQuery(undefined, { enabled: false });
+
+  const csvRow = (fields: string[]) => {
+    return fields.map(f => {
+      const escaped = f.replace(/"/g, '""');
+      return f.includes(',') || f.includes('"') || f.includes('\n') ? `"${escaped}"` : f;
+    }).join(',');
+  };
+
+  const handleExport = async (format: "json" | "csv") => {
+    setExporting(true);
+    try {
+      const result = await exportQuery.refetch();
+      const data = result.data;
+      if (!data) {
+        toast.error("No data to export");
+        return;
+      }
+
+      let content: string;
+      let filename: string;
+      let mimeType: string;
+
+      if (format === "json") {
+        content = JSON.stringify(data, null, 2);
+        filename = `evm-indexer-export-${new Date().toISOString().slice(0, 10)}.json`;
+        mimeType = "application/json";
+      } else {
+        // CSV format - flatten profiles with their addresses and socials
+        const rows: string[] = [];
+        rows.push("profile_name,profile_tags,profile_notes,address,chain,label,address_notes,arkham_entity,arkham_labels,social_platform,social_username,social_verified");
+
+        for (const profile of data.profiles) {
+          const profileAddresses = data.addresses.filter(a => a.profileId === profile.id);
+          const profileSocials = data.socials.filter(s => s.profileId === profile.id);
+
+          if (profileAddresses.length === 0 && profileSocials.length === 0) {
+            rows.push(csvRow([profile.name, profile.tags || "", profile.notes || "", "", "", "", "", "", "", "", "", ""]));
+          } else {
+            const maxLen = Math.max(profileAddresses.length, profileSocials.length, 1);
+            for (let i = 0; i < maxLen; i++) {
+              const addr = profileAddresses[i];
+              const social = profileSocials[i];
+              rows.push(csvRow([
+                i === 0 ? profile.name : "",
+                i === 0 ? (profile.tags || "") : "",
+                i === 0 ? (profile.notes || "") : "",
+                addr?.address || "",
+                addr?.chain || "",
+                addr?.label || "",
+                addr?.notes || "",
+                addr?.arkhamEntity || "",
+                addr?.arkhamLabels || "",
+                social?.platform || "",
+                social?.username || "",
+                social ? String(social.verified) : "",
+              ]));
+            }
+          }
+        }
+        content = rows.join("\n");
+        filename = `evm-indexer-export-${new Date().toISOString().slice(0, 10)}.csv`;
+        mimeType = "text/csv";
+      }
+
+      // Trigger download
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()} successfully`);
+    } catch (err) {
+      toast.error("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const profilesQuery = trpc.profiles.list.useQuery(undefined, { enabled: isAuthenticated });
   const createMutation = trpc.profiles.create.useMutation({
@@ -106,13 +197,33 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold tracking-tight">Investigation Profiles</h1>
               <p className="text-muted-foreground mt-1">Manage your on-chain investigation profiles</p>
             </div>
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90">
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Profile
-                </Button>
-              </DialogTrigger>
+            <div className="flex items-center gap-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="border-border/50" disabled={exporting}>
+                    <Download className="w-4 h-4 mr-2" />
+                    {exporting ? "Exporting..." : "Export"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card border-border">
+                  <DropdownMenuItem onClick={() => handleExport("json")} className="cursor-pointer">
+                    <FileJson className="w-4 h-4 mr-2" />
+                    Export as JSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("csv")} className="cursor-pointer">
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-primary hover:bg-primary/90">
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Profile
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="bg-card border-border">
                 <DialogHeader>
                   <DialogTitle>Create Investigation Profile</DialogTitle>
@@ -152,6 +263,7 @@ export default function Dashboard() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {/* Search */}

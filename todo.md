@@ -31,3 +31,10 @@
 - [x] Backend: search local DB for matching addresses when searching
 - [x] Frontend: display local DB matches in SearchPage with link to profile
 - [x] Frontend: quick-link button to view profile from search results
+- [x] Backend: export all data procedure (profiles, addresses, socials, connections)
+- [x] Frontend: export button with CSV/JSON format selector on Dashboard
+- [x] Database: shared_profiles table for sharing profiles with other users
+- [x] Backend: share profile procedure (generate share link)
+- [x] Backend: list shared profiles / view shared / delete share procedures
+- [x] Frontend: share button on profile detail page
+- [x] Frontend: shared profiles view for recipients (SharedProfileView page)

@@ -5,6 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { arkhamSearch } from "./arkham";
+import { nanoid } from "nanoid";
 
 export const appRouter = router({
   system: systemRouter,
@@ -294,6 +295,72 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await db.deleteSearchEntry(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Export ─────────────────────────────────────────────────────────────────
+  export: router({
+    all: protectedProcedure.query(async ({ ctx }) => {
+      return db.getFullExportData(ctx.user.id);
+    }),
+  }),
+
+  // ─── Sharing ───────────────────────────────────────────────────────────────
+  sharing: router({
+    createLink: protectedProcedure
+      .input(z.object({
+        profileId: z.number(),
+        permission: z.enum(["view", "edit"]).default("view"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const profile = await db.getProfileById(input.profileId);
+        if (!profile || profile.userId !== ctx.user.id) throw new Error("Not found");
+        const shareToken = nanoid(32);
+        await db.createShareLink({
+          profileId: input.profileId,
+          ownerId: ctx.user.id,
+          shareToken,
+          shareType: "link",
+          permission: input.permission,
+        });
+        return { shareToken };
+      }),
+
+    getByProfile: protectedProcedure
+      .input(z.object({ profileId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const profile = await db.getProfileById(input.profileId);
+        if (!profile || profile.userId !== ctx.user.id) throw new Error("Not found");
+        return db.getSharesByProfile(input.profileId);
+      }),
+
+    viewShared: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const share = await db.getShareByToken(input.token);
+        if (!share) throw new Error("Share link not found or expired");
+        if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+          throw new Error("Share link expired");
+        }
+        const profile = await db.getProfileById(share.profileId);
+        if (!profile) throw new Error("Profile not found");
+        const addresses = await db.getAddressesByProfile(share.profileId);
+        const socials = await db.getSocialsByProfile(share.profileId);
+        const connections = await db.getConnectionsByProfile(share.profileId);
+        return { profile, addresses, socials, connections, permission: share.permission };
+      }),
+
+    mySharedProfiles: protectedProcedure.query(async ({ ctx }) => {
+      return db.getSharedWithUser(ctx.user.id);
+    }),
+
+    deleteLink: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const share = await db.getShareById(input.id);
+        if (!share || share.ownerId !== ctx.user.id) throw new Error("Not found or not authorized");
+        await db.deleteShareLink(input.id);
         return { success: true };
       }),
   }),
