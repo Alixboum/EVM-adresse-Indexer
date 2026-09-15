@@ -38,3 +38,4 @@
 - [x] Backend: list shared profiles / view shared / delete share procedures
 - [x] Frontend: share button on profile detail page
 - [x] Frontend: shared profiles view for recipients (SharedProfileView page)
+- [x] Publication: synchronize the current project with the GitHub repository EVM Address Indexer
